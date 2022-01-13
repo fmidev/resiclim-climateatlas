@@ -14,7 +14,7 @@
 #  website_endpoint = http://%(bucket)s.s3-website-%(location)s.amazonaws.com/
 #
 #  The public address of data (if exists) will follow this format:
-#  https://resiclim-era5.a3s.fi/some_folder_path/data.nc
+#  https://resiclim.a3s.fi/some_folder_path/data.nc
 
 
 
