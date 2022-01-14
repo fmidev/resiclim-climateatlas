@@ -13,8 +13,9 @@ import allas_utils as allas
 varname = str(sys.argv[1]) 
 
 
-#years = np.arange(1950,2022).astype(int)
-years = (2020,)
+years = np.arange(1950,2022).astype(int)
+years = np.arange(2021,1949,-1).astype(int)
+#years = (2020,)
 months = np.arange(1,13)
 
 for month, year in itertools.product(months,years):
