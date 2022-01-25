@@ -5,6 +5,13 @@
 # Transfer the files immediately to CSC Allas S3 object storage
 
 
+
+
+code_dir='/users/kamarain/resiclim-climateatlas'
+data_dir='/scratch/project_2005404'
+
+
+
 # Prepare the Anaconda Python environment 
 export PATH="/projappl/project_2005404/miniconda/bin:$PATH"
 export LD_LIBRARY_PATH="/projappl/project_2005404/miniconda/lib"
@@ -14,13 +21,17 @@ export LD_LIBRARY_PATH="/projappl/project_2005404/miniconda/lib"
 
 
 
+mkdir -p $data_dir/temporal
+cd $data_dir/temporal
+
+
 # Download the variables
-declare -a vars=('2m_dewpoint_temperature' '2m_temperature' 'snow_cover' 'snow_depth' 'snowfall' 'total_precipitation') 
-#declare -a vars=('2m_temperature' 'total_precipitation') 
+#declare -a vars=('2m_dewpoint_temperature' '2m_temperature' 'skin_temperature' 'snow_cover' 'snow_depth' 'snowfall' 'total_precipitation') 
+declare -a vars=('2m_temperature' 'total_precipitation') 
 for var in "${vars[@]}"
 do
    echo $var
-   python download_era5_land.py $var &
+   python $code_dir/download_era5_land_zr.py $var &
 done
 
 
