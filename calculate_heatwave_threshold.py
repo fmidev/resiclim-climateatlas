@@ -42,10 +42,10 @@ def save_as_dataarray(array, doy_values, da_t2max):
 
 
 # define the output data path to which the resulting percentiles are saved
-outpath = '/scratch/project_2005030/test/heatwave_25_75.nc'
+outpath = '/projappl/project_2005030/climateatlas/heatwave_threshold.nc'
 
 ## define the climatology years. 1981-2010 are used in the literature
-years = np.arange(1991,2011)
+years = np.arange(1981,2011)
 
 # Set up the S3 file system
 access = os.getenv('S3_RESICLIM_ACCESS') 
@@ -64,14 +64,14 @@ struct = np.ones(31)
     
 # Arrays for saving the result
 p90_array = np.empty((366, np.shape(da_t2max)[1], np.shape(da_t2max)[2]))
-p75_array = np.empty((366, np.shape(da_t2max)[1], np.shape(da_t2max)[2]))
-p25_array = np.empty((366, np.shape(da_t2max)[1], np.shape(da_t2max)[2]))
+#p75_array = np.empty((366, np.shape(da_t2max)[1], np.shape(da_t2max)[2]))
+#p25_array = np.empty((366, np.shape(da_t2max)[1], np.shape(da_t2max)[2]))
 
 doy_values = np.unique(da_t2max['time.dayofyear'].values)
     
 for day in doy_values:
     start2 = time.time()
-    print('Calculating thresholds for day '+str(day))
+    print('Calculating thresholds for doy '+str(day))
 
     dayofyear = da_t2max['time.dayofyear'] == day
     
@@ -83,21 +83,21 @@ for day in doy_values:
 
     # Calculate the percentiles and save into arrays
     p90_array[int(day)-1,:, :] = np.nanpercentile(da_t2max.sel(time=selection), 90, axis=0)
-    p75_array[int(day)-1,:, :] = np.nanpercentile(da_t2max.sel(time=selection), 75, axis=0)
-    p25_array[int(day)-1,:, :] = np.nanpercentile(da_t2max.sel(time=selection), 25, axis=0)
+    #p75_array[int(day)-1,:, :] = np.nanpercentile(da_t2max.sel(time=selection), 75, axis=0)
+    #p25_array[int(day)-1,:, :] = np.nanpercentile(da_t2max.sel(time=selection), 25, axis=0)
     
     end2 = time.time()
-    print('Day took '+str(np.round(end2 - start2, 2))+' seconds')
+    print('Calculation lasted '+str(np.round(end2 - start2, 2))+' seconds')
 
 
 p90_da = save_as_dataarray(p90_array, doy_values, da_t2max)
-p75_da = save_as_dataarray(p75_array, doy_values, da_t2max)
-p25_da = save_as_dataarray(p25_array, doy_values, da_t2max)
+#p75_da = save_as_dataarray(p75_array, doy_values, da_t2max)
+#p25_da = save_as_dataarray(p25_array, doy_values, da_t2max)
 
 ### Create dataset for the output variables
 ds_out = p90_da.to_dataset(name='p90')
-ds_out['p75'] = p75_da
-ds_out['p25'] = p25_da
+#ds_out['p75'] = p75_da
+#ds_out['p25'] = p25_da
 
 ds_out = ds_out.compute()
 

@@ -24,11 +24,11 @@ import time
 
 start = time.time()
 
-# define the output data path to which the resulting percentiles are saved
-outpath = '/scratch/project_2005030/test/heatwave_25_75.nc'
+# define the output path to which the resulting percentiles are saved
+outpath = '/projappl/project_2005030/climateatlas/heatwave_25_75.nc'
 
 ## define the climatology years. 1981-2010 are used in the literature
-years = np.arange(1991,2011)
+years = np.arange(1981,2011)
 
 # Set up the S3 file system
 access = os.getenv('S3_RESICLIM_ACCESS') 
@@ -41,9 +41,11 @@ fs = s3fs.S3FileSystem(anon=False, key=access, secret=secret,
 da_t2max = io_utils.read_daily_data_from_allas(fs, years, 'summer', '2m_temperature','DMAX')
 
 # calculate annual maxima
+print('Calculating annual maximum values...')
 t2max_annual = da_t2max.groupby(da_t2max.time.dt.year).max().compute()
 
 # calculate the percentiles 
+print('Calculating 25th and 75th percentiles...')
 p75_max = t2max_annual.quantile(0.75, dim='year')
 p25_max = t2max_annual.quantile(0.25, dim='year')
 
