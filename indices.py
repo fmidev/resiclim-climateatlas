@@ -25,7 +25,7 @@ def thermal_growing_season_length(da_t2mean_summer, basevalue):
     # year
     y = da_t2mean_summer.time.dt.year[-1].values
         
-    print('Calculating thermal growing season lenght for '+str(y))
+    print('Calculating thermal growing season lenght for '+str(y), flush=True)
         
     # Select annual temperature and convert from Kelvin to Celsius
     da_annual = da_t2mean_summer - 273.15#.where(da_t2mean_summer.time.dt.year == y, drop=True)#.sel(latitude=71.5, longitude=-180)
@@ -72,6 +72,8 @@ def thermal_growing_degree_days(da_t2mean_summer, basevalue):
     ## but not earlier than 1st of July.
     ## Ruosteenoja et al. (2016): https://doi.org/10.1002/joc.4535
     
+    import warnings
+    warnings.simplefilter("ignore", category=RuntimeWarning)
     
     # year
     y = da_t2mean_summer.time.dt.year[-1].values
@@ -133,6 +135,8 @@ def thermal_growing_degree_days(da_t2mean_summer, basevalue):
     return gdd
 
 def rain_on_snow(da_tp, da_sf, da_snowc, rain_threshold):
+    
+    # this function calculates rain-on-snow events
     
     # year
     y = da_tp.time.dt.year[-1].values
@@ -233,20 +237,22 @@ def winter_warming(da_t2mean_winter, da_snowc):
         
     return wwe_int
 
-def frost_during_growing_season(da_t2mean_summer, basevalue):
+def frost_during_growing_season(da_t2mean_summer, da_skt, basevalue):
     
-
+    # this function calculates the total cumulative frost days during 
+    # the growing season. The growing season is determined using so called 
+    # integral method (Ruosteenoja et al 2016). The frost is based on 2m-temperature
+    
+    ## Ruosteenoja et al. (2016): https://doi.org/10.1002/joc.4535
+    
     # year
     y = da_t2mean_summer.time.dt.year[-1].values
-    
-    # fgs_annual = []
-    
-    # for y in years:
         
     print('Calculating frost during growing season for '+str(y))
         
     # Select annual temperature
     da_2t_annual = da_t2mean_summer - 273.15 
+    da_skt_annual = da_skt - 273.15 
     
     # subtract the base value
     da_2t_gs = da_2t_annual- basevalue
@@ -287,7 +293,7 @@ def frost_during_growing_season(da_t2mean_summer, basevalue):
         
     # Now that we have an indexer array that selects the elements we want, we can calculate our result
     # Select those days within the GS when temperature is below zero
-    selected_data = da_2t_annual.where((da_2t_annual < 0.0) | (da_2t_annual.isnull()), 0.0) * selector # Multidimensional boolean indexing is not supported...
+    selected_data = da_skt_annual.where((da_skt_annual < 0.0) | (da_skt_annual.isnull()), 0.0) * selector # Multidimensional boolean indexing is not supported...
        
     # Calculate sum
     fgs = selected_data.sum(dim='time', skipna=False)
@@ -423,23 +429,118 @@ def heatwave_magnitude_index(da_t2max, T90p, p75max, p25max):
     return hwi
     
 
-def freezing_degree_days(da_t2mean):
+def freezing_degree_days(da_t2mean_winter):
     
-    # number of years in the data
-    years = np.unique(da_t2mean.time.dt.year)
+    ## This function calculates the freezing degree days, using the so-called integral 
+    ## method (see Ruosteenoja et al. 2016) to determine the onset and end of the 
+    ## freezing season. The freezing season starts when the maximum of cumulative sum of 
+    ## daily average temperatures are reached, but not later than Feb 1st. The end
+    ## of season is defined when the cumulative minimum of freezing season occurs.
+    ## 
+    ## The degree days are negative
+    ##
     
-    # change Kelvin to Celsius
-    da_t2mean -= 273.15
+    ## Ruosteenoja et al. (2016): https://doi.org/10.1002/joc.4535
+    
+    import warnings 
+    # year
+    y = da_t2mean_winter.time.dt.year[-1].values
+    
+    
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+        
+    print('Calculating freezing degree days for '+str(y))
+        
+    # Select annual temperature and change Kelvin to Celsius
+    da_t2mean_annual = da_t2mean_winter - 273.15
+    
+     # cumulative temperature sum
+    cumsum_da = da_t2mean_annual.cumsum(dim='time', skipna=False)
+        
+    # fill the nans of the array with obviously wrong value
+    cumsum_da = cumsum_da.fillna(-99999)
+        
+    # lenght of the period from which the maximum is searched (in days)
+    # July to the end of December
+    len_period = len(da_t2mean_annual.time.sel(time=slice(str(y-1)+'-07-01', str(y)+'-01-31')))
+        
+    # Define the beginning of freezing season
+    day_max = cumsum_da.sel(time=slice(str(y-1)+'-07-01', str(y)+'-01-31')).argmax(dim='time')
+    fs_beg = day_max + 1
+        
+    # Define the end of growing season
+    fs_end = cumsum_da.sel(time=slice(str(y)+'-02-01', str(y)+'-06-30')).argmin(dim='time')
+    # Select only those location where the end is non-zero
+    fs_end = fs_end.where(fs_end>0)
+        
+    # Add the missing days from Jul-Jan to get the actual day of year
+    fs_end = fs_end + len_period
+    
+    # Create a helper time array - each element's value is the timestamp's value    
+    time = da_t2mean_annual.coords['time'].copy(data=np.arange(1, np.shape(da_t2mean_annual)[0]+1))
+    expanded_time = time.expand_dims({'latitude': da_t2mean_annual.latitude, 
+                                      'longitude':da_t2mean_annual.longitude})
+        
+    # where() -- for each element, if condition is false, set element to nan
+    e1 = expanded_time.where(expanded_time <= fs_end, np.nan)
+    e2 = e1.where(e1 >= fs_beg, np.nan)
+    # make 1/np.nan array
+    selector = e2.where(e2.isnull(),1)  
+        
+    # Now that we have an indexer array that selects the elements we want, we can calculate our result
+    # Positive days within the freezing season do not reduce the sum; 
+    # thus replace above-zero temperatures by zero
+    selected_data = da_t2mean_annual.where(da_t2mean_annual<=0,0) * selector # Multidimensional boolean indexing is not supported...
+       
+    # Calculate sum
+    fdd = selected_data.sum(dim='time', skipna=True)
+    
+    # Assign coordinate and rename
+    fdd = fdd.where(fdd<0).assign_coords(time=y).rename('fdd').astype(float)
+        
+    # Assign attributes
+    fdd.attrs['units'] = 'C day'
+    fdd.attrs['long_name'] = 'Freezing degree day sum'
+        
+    return fdd
 
-    fdd_annual = []
+def snow_season_length(da_snowc, ):
     
-    for y in years:
+    ## This function calculates the length of snow season,
+    ## defined by the time period between first and last snow date.
+    ## The first and last snow date are defined as the first and last days when snow 
+    ## cover fraction is > 50 %
+    ## The length is given in days
+    
+    
+    # year
+    y = da_snowc.time.dt.year[-1].values
         
-        warnings.simplefilter("ignore", category=RuntimeWarning)
+    print('Calculating snow season lenght for '+str(y), flush=True)
         
-        print('Calculating freezing degree days for '+str(y))
+    # Select annual temperature and convert from Kelvin to Celsius
+    da_annual = da_snowc
+
+    # subtract the base value
+    da_annual = da_annual.where((da_annual > 50 )| (da_snowc.isnull()), 0)
+    
+    # fill the nans of the array with obviously wrong value
+    da_annual = da_annual.fillna(-99999)
+    
+    # first day of snow
+    fds = da_annual.argmax(dim='time')
+    
+    # last day of snow
+    lds = len(da_annual.time) - da_annual.reindex(time=da_annual.time[::-1]).argmax(dim='time')
+    
+    # length of snow season
+    lss = (lds - fds).assign_coords(time=y).rename('lss')
+    
+    # replace the wrong values with NaN
+    lss = lss.where(lss < 365).astype(float)
         
-        # Select annual temperature
-        da_t2mean_annual = da_t2mean.where(da_t2mean.time.dt.year == y, drop=True)#.sel(latitude=61, longitude=27)
+    # Assign attributes
+    lss.attrs['long_name'] = 'Length of snow season in days'
+
         
-    return fdd_annual
+    return lss
