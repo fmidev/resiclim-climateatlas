@@ -45,7 +45,7 @@ def read_daily_data_from_allas(fs, years, yeartype,  var, func):
             yearstring = str(year-1)+'-'+str(year)
             
             
-        print('Reading ERA5-Land '+func+' '+var+' for '+yearstring)
+        print('Reading ERA5-Land '+func+' '+var+' for '+yearstring, flush=True)
         ds = allas.read_mf_s3(fs, matching, chunks={'time':10}, combine='by_coords')
         # ds = allas.read_mf_s3(fs, matching, chunks={'latitude':90}, combine='by_coords')
     
