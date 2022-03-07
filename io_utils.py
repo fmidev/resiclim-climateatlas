@@ -131,6 +131,21 @@ def read_test_data_from_lustre(var, func):
     return da
 
 
+def add_attributes(ds):
+    
+    from datetime import datetime
+    
+    # add time attribute
+    ds.time.attrs['long_name'] = "time"
+
+    # add global attributes
+    ds.attrs['Conventions'] = 'CF-1.7'
+    ds.attrs['title'] = 'Bioclimatic indices'
+    ds.attrs['Institution'] = 'Finnish Meteorological Institute'
+    ds.attrs['source'] = 'ERA5-Land'
+    ds.attrs['history'] = datetime.utcnow().strftime(format='%Y-%m-%d %H:%M:%S') + ' Python'
+    
+    return ds
     
     
 
