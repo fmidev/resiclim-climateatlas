@@ -37,20 +37,22 @@ outpath = '/projappl/project_2005030/climateatlas/out/'
 
 
 ## define the years
-years = [2018, 2019, 2020]
-years = np.arange(1991, 2021)
+# years = [2018]
+years = np.arange(1950, 2022)
 
 
 # select which indices to calculate
-variables = {'growing_season_length':  True,
-             'growing_degree_days':    True, 
-             'freezing_degree_days':   True,
-             'rain_on_snow':           False,
-             'winter_warming':         True,
-             'frost_growing_season':   True,
-             'vapor_pressure_deficit': True,
-             'heatwave_magnitude':     True, 
-             'snow_season_length':     True}
+variables = {'growing_season_length':  False,
+             'growing_degree_days':    False, 
+             'freezing_degree_days':   False,
+             'rain_on_snow':           True,
+             'ros_intensity':          True,
+             'winter_warming':         False,
+             'frost_growing_season':   False,
+             'vapor_pressure_deficit': False,
+             'heatwave_magnitude':     False, 
+             'snow_season_length':     False,
+             'longest_snow_period':    False}
 
 # allocate dataarray dictionary
 da_lists = dict((k, []) for k, v in variables.items() if v)
@@ -63,11 +65,13 @@ shortnames = {'growing_season_length':  'GSL',
               'growing_degree_days':    'GDD', 
               'freezing_degree_days':   'FDD',
               'rain_on_snow':           'ROS',
+              'ros_intensity':          'RSI',
               'winter_warming':         'WW',
               'frost_growing_season':   'FGS',
               'vapor_pressure_deficit': 'VPD',
               'heatwave_magnitude':     'HWM', 
-              'snow_season_length':     'SSL'}
+              'snow_season_length':     'SSL',
+              'longest_snow_period':    'LSP'}
 
 # read heatwave threshold climatology
 threshold_ds = xr.open_dataset('/projappl/project_2005030/climateatlas/heatwave_threshold.nc')
@@ -78,34 +82,26 @@ percentiles_ds = xr.open_dataset('/projappl/project_2005030/climateatlas/heatwav
 p75max = percentiles_ds.p75_max - 273.15
 p25max = percentiles_ds.p25_max - 273.15
 
+# define the basevalue (threshold) in Celsius for growing season   
+basevalue = 5
+# define the rain threshold for ROS events in meters
+rain_threshold = 0.005
 
+# loop over the years
 for year in years:
     
     #### READ RAW INPUT ERA5-Land data-arrays #######
     
-    da_t2mean_summer = io_utils.read_daily_data_from_allas(fs, [year], 'summer', '2m_temperature','DMEA')
-    da_t2mean_winter = io_utils.read_daily_data_from_allas(fs, [year], 'winter', '2m_temperature','DMEA')
-    da_t2max = io_utils.read_daily_data_from_allas(fs, [year], 'summer', '2m_temperature','DMAX')
-    da_d2mean = io_utils.read_daily_data_from_allas(fs, [year], 'summer', '2m_dewpoint_temperature','DMEA')
+    # da_t2mean_summer = io_utils.read_daily_data_from_allas(fs, [year], 'summer', '2m_temperature','DMEA')
+    # da_t2mean_winter = io_utils.read_daily_data_from_allas(fs, [year], 'winter', '2m_temperature','DMEA')
+    # da_t2max = io_utils.read_daily_data_from_allas(fs, [year], 'summer', '2m_temperature','DMAX')
+    # da_d2mean = io_utils.read_daily_data_from_allas(fs, [year], 'summer', '2m_dewpoint_temperature','DMEA')
     da_snowc = io_utils.read_daily_data_from_allas(fs, [year], 'winter', 'snow_cover','DMEA')
-    # da_tp = io_utils.read_daily_data_from_allas(fs, [year], 'winter', 'total_precipitation','DSUM')
+    da_tp = io_utils.read_daily_data_from_allas(fs, [year], 'winter', 'total_precipitation','DSUM')
     da_sf = io_utils.read_daily_data_from_allas(fs, [year], 'winter', 'snowfall','DSUM')
-    da_skt = io_utils.read_daily_data_from_allas(fs, [year], 'summer', 'skin_temperature','DMEA')
-
-
-# da_t2mean = io_utils.read_test_data_from_lustre('2m_temperature', 'mean')
-# da_t2max = io_utils.read_test_data_from_lustre('2m_temperature', 'max')
-# da_d2mean = io_utils.read_test_data_from_lustre('2m_dewpoint_temperature', 'mean')
-# da_tp = io_utils.read_test_data_from_lustre('total_precipitation',  'sum')
-# da_sf = io_utils.read_test_data_from_lustre('snowfall',  'sum')
-# da_snowc = io_utils.read_test_data_from_lustre('snow_cover',  'mean')
+    # da_skt = io_utils.read_daily_data_from_allas(fs, [year], 'summer', 'skin_temperature','DMEA')
  
 
-    # define the basevalue (threshold) in Celsius for growing season   
-    basevalue = 5
-    # define the rain threshold for ROS events in meters
-    rain_threshold = 0.005
-  
 ######### CALCULATE THE VARIOUS INDICES/VARIABLES
 
     # growing season length
@@ -127,6 +123,11 @@ for year in years:
     if variables["rain_on_snow"]:
         ros_tmp = indices.rain_on_snow(da_tp, da_sf, da_snowc, rain_threshold)
         da_lists["rain_on_snow"].append(ros_tmp.compute())
+        
+     # rain-on-snow event intensity 
+    if variables["ros_intensity"]:
+        rsi_tmp = indices.rain_on_snow_intensity(da_tp, da_sf, da_snowc, rain_threshold)
+        da_lists["ros_intensity"].append(rsi_tmp.compute())
 
     # # winter warming events 
     if variables["winter_warming"]:
@@ -152,6 +153,12 @@ for year in years:
     if variables["snow_season_length"]:
         ssl_tmp = indices.snow_season_length(da_snowc, )
         da_lists["snow_season_length"].append(ssl_tmp.compute())
+        
+    # # Snow season length
+    if variables["longest_snow_period"]:
+        lsp_tmp = indices.longest_snow_period(da_snowc)
+        da_lists["longest_snow_period"].append(lsp_tmp.compute())
+        
     
     # print memory usage
     print('Memory usage:')
@@ -159,7 +166,7 @@ for year in years:
 
 print('All incides computed!')
 
-# concatenate dataarrays
+# concatenate dataarrays and save data into netcdf files
 for var in da_lists:
     ds_out[var] = xr.concat(da_lists[var], dim='time').compute().to_dataset(name=shortnames[var])
     
