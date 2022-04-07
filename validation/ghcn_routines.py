@@ -44,13 +44,21 @@ def ghcn_station_offsets():
 
 def read_station_locations():
     
-    ## read station location
+    ## read all station locations
     locs = pd.read_csv('https://www.ncei.noaa.gov/pub/data/ghcn/daily/ghcnd-stations.txt', 
                        delim_whitespace=True, 
                        names=['station','lat','lon','D','E','F','G','H','I','J','K','L','M'])
     locs.index = locs.station
     
-    return locs[['lat','lon']]
+    stations = ghcn_stations()
+    
+    # select only the chosen stations
+    station_locs = pd.DataFrame(index=stations.keys(), columns=['lat','lon'])
+    for station in stations.keys():
+        station_locs.loc[station].lat = locs.loc[station].lat
+        station_locs.loc[station].lon = locs.loc[station].lon
+    
+    return station_locs
 
 def get_ghcn_daily_var(var, station, years):
     
