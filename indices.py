@@ -50,17 +50,17 @@ def thermal_growing_season_length(da_t2mean_summer, basevalue):
     # gs_beg = gs_beg.where(gs_beg>1)
         
     # day of maximum = end of GS
-    gs_end = cumsum_da.sel(time=slice(str(y)+'-06-01', str(y)+'-12-31')).argmax(dim='time')
-    # Add the missing days from Jan-May
-    gs_end = gs_end + len(da_annual.time.sel(time=slice(str(y)+'-01-01', str(y)+'-05-31')))
+    gs_end = cumsum_da.sel(time=slice(str(y)+'-07-01', str(y)+'-12-31')).argmax(dim='time')
+    # Add the missing days from Jan-June
+    gs_end = gs_end + len(da_annual.time.sel(time=slice(str(y)+'-01-01', str(y)+'-06-30')))
         
 
     # calculate the length of GS for each grid point
-    gsl = (gs_end - gs_beg)*ls_mask.assign_coords(time=y).rename('gsl')
+    gsl = (gs_end - gs_beg).rename('gsl')
         
     # replace the wrong values with NaN
-    gsl = gsl.where(gsl > 0).astype(float) 
-        
+    gsl = gsl.where(gsl>0, 0)*ls_mask.astype(float).assign_coords(time=y) 
+            
     # Assign attributes
     gsl.attrs['long_name'] = 'Length of thermal growing season in days'
 
@@ -89,6 +89,10 @@ def thermal_growing_degree_days(da_t2mean_summer, basevalue):
         
     # subtract the base value
     da_annual -= basevalue
+    
+    # 1/np.nan field (land sea mask)
+    ls_mask = da_annual.isel(time=0).notnull()
+    ls_mask = ls_mask.where(ls_mask, np.nan)
     
     # cumulative temperature sum
     cumsum_da = da_annual.cumsum(dim='time', skipna=False)
@@ -130,7 +134,7 @@ def thermal_growing_degree_days(da_t2mean_summer, basevalue):
     gdd = selected_data.sum(dim='time', skipna=True)
         
     # Assign coordinate and rename
-    gdd = gdd.where(gdd>0).assign_coords(time=y).rename('gdd').astype(float)
+    gdd = gdd.where(gdd>0, 0)*ls_mask.assign_coords(time=y).rename('gdd').astype(float)
         
     # Assign attributes
     gdd.attrs['units'] = 'C day'
@@ -140,8 +144,8 @@ def thermal_growing_degree_days(da_t2mean_summer, basevalue):
 
 def rain_on_snow(da_tp, da_sf, da_snowc, rain_threshold):
     
-    def is_djfm(month):
-        return (month >= 12) | (month <= 3)
+    def is_ndjfm(month):
+        return (month >= 11) | (month <= 3)
     
     # this function calculates rain-on-snow events
     
@@ -172,7 +176,7 @@ def rain_on_snow(da_tp, da_sf, da_snowc, rain_threshold):
     ros_events = (snow_covered * rain)
     
     # Select only DJFM period
-    ros_events = ros_events.sel(time=is_djfm(ros_events['time.month']))
+    ros_events = ros_events.sel(time=is_ndjfm(ros_events['time.month']))
         
     # Calculate sum
     ros = ros_events.sum(dim='time', skipna=False)
@@ -188,8 +192,8 @@ def rain_on_snow(da_tp, da_sf, da_snowc, rain_threshold):
 
 def rain_on_snow_intensity(da_tp, da_sf, da_snowc, rain_threshold):
     
-    def is_djfm(month):
-        return (month >= 12) | (month <= 3)
+    def is_ndjfm(month):
+        return (month >= 11) | (month <= 3)
     
     # this function calculates rain-on-snow events
     
@@ -232,7 +236,7 @@ def rain_on_snow_intensity(da_tp, da_sf, da_snowc, rain_threshold):
     ros_intensity = (da_lp_annual - rain_threshold) * ros_events * weights_by_duration
         
     # select only DJFM period
-    ros_intensity = ros_intensity.sel(time=is_djfm(ros_intensity['time.month']))
+    ros_intensity = ros_intensity.sel(time=is_ndjfm(ros_intensity['time.month']))
     
     # the metric is the cumulative sum of the whole winter year
     rsi = ros_intensity.sum(dim='time', skipna=False)
@@ -246,8 +250,58 @@ def rain_on_snow_intensity(da_tp, da_sf, da_snowc, rain_threshold):
     
     return rsi
 
+def winter_warming_events(da_t2mean_winter, da_snowc):
+    
+    # This function calculates the number of winter warming events. 
+    # the events are defined as days in Dec-Mar period, when the grid cell is 
+    # snow covered and daily mean temperature rises over 2C. 
+    
+    def is_djfm(month):
+        return (month >= 12) | (month <= 3)
+    
+    import warnings
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+    
+    # year
+    y = da_t2mean_winter.time.dt.year[-1].values
+        
+    print('Calculating winter warming events for '+str(y)) 
+        
+    # select annual data and convert from Kelvin to Celsius
+    da_2t_annual = da_t2mean_winter - 273.15 
 
-def winter_warming(da_t2mean_winter, da_snowc):
+        
+    # When the snow cover is 0.5 or greater in the grid cell,
+    # we consider it snow-covered. 
+        
+    # Replace grid cells with snow cover < 50 by 0
+    snow_covered = da_snowc.where((da_snowc > 50) | (da_snowc.isnull()), 0)
+        
+    # Replace grid cells with snow cover > 50 with 1
+    snow_covered = snow_covered.where((snow_covered < 50) | (snow_covered.isnull()),1)
+        
+    # Daily mean temperature needs to be at least 2 C
+    over_two_degrees = da_2t_annual.where(da_2t_annual >= 2.0, np.nan).notnull()
+        
+    # WW events
+    ww_events = (snow_covered * over_two_degrees)
+        
+    # select only DJFM period
+    ww_events = ww_events.sel(time=is_djfm(ww_events['time.month']))
+    
+    # the metric is the cumulative sum over the whole DFJM period
+    wwe = ww_events.sum(dim='time', skipna=False)
+        
+    # Assign coordinate and rename
+    wwe = wwe.assign_coords(time=y).rename('wwint').astype(float)
+        
+    # Assign attributes
+    wwe.attrs['units'] = ''
+    wwe.attrs['long_name'] = 'Number of winter warming events'
+        
+    return wwe
+
+def winter_warming_intensity(da_t2mean_winter, da_snowc):
     
     # This function calculates the total intensity of winter warming events. 
     # the events are defined as days in Dec-Mar period, when the grid cell is 
@@ -264,7 +318,7 @@ def winter_warming(da_t2mean_winter, da_snowc):
     # year
     y = da_t2mean_winter.time.dt.year[-1].values
         
-    print('Calculating winter warming events for '+str(y)) 
+    print('Calculating the intensity of winter warming events for '+str(y)) 
         
     # select annual data and convert from Kelvin to Celsius
     da_2t_annual = da_t2mean_winter - 273.15 
@@ -321,6 +375,8 @@ def frost_during_growing_season(da_t2mean_summer, da_skt, basevalue):
     
     ## Ruosteenoja et al. (2016): https://doi.org/10.1002/joc.4535
     
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+    
     # year
     y = da_t2mean_summer.time.dt.year[-1].values
         
@@ -373,6 +429,9 @@ def frost_during_growing_season(da_t2mean_summer, da_skt, basevalue):
        
     # Calculate sum
     fgs = selected_data.sum(dim='time', skipna=False)
+    
+    # FGS is considered positive
+    fgs *= -1
         
     # Assign coordinate and rename
     fgs = fgs.assign_coords(time=y).rename('fgs').astype(float)
@@ -383,7 +442,7 @@ def frost_during_growing_season(da_t2mean_summer, da_skt, basevalue):
         
     return fgs
 
-def vapour_pressure_deficit(da_t2mean_summer, da_d2mean):
+def vapour_pressure_deficit(da_t2mean_summer, da_d2mean, basevalue):
     
     # This function calculates vapor pressure deficit from 2m temperature 
     # and 2m dew point temperature. Currently the annual 
@@ -410,9 +469,51 @@ def vapour_pressure_deficit(da_t2mean_summer, da_d2mean):
         
     # Calculate the deficit
     vpd = VPsat - VPair
+    
+    #### CALCULATE growing season
+     # subtract the base value
+    da_2t_gs = da_2t_annual- basevalue
+    
+    # cumulative temperature sum
+    cumsum_da = da_2t_gs.cumsum(dim='time', skipna=False)
         
-    # Calculate annual mean
-    vpd = vpd.mean(dim='time', skipna=True)
+    # fill the nans of the array with obviously wrong value
+    cumsum_da = cumsum_da.fillna(-99999)
+        
+    # lenght of the period from which the minimum is searched (in days)
+    # January to the end of June
+    len_period = len(da_2t_annual.time.sel(time=slice(str(y)+'-01-01', str(y)+'-06-30')))
+        
+    # Define the beginning of growing season
+    day_min = cumsum_da.sel(time=slice(str(y)+'-01-01', str(y)+'-06-30')).argmin(dim='time')
+    gs_beg = day_min + 1
+        
+    # Define the end of growing season
+    gs_end = cumsum_da.sel(time=slice(str(y)+'-07-01', str(y)+'-12-31')).argmax(dim='time')
+    # Select only those location where the end is non-zero
+    gs_end = gs_end.where(gs_end>0)
+        
+    # Add the missing days from Jan-May to get the actual day of year
+    gs_end = gs_end + len_period
+        
+    # Create a helper time array - each element's value is the timestamp's value
+    time = da_2t_annual.coords['time'].dt.dayofyear
+    expanded_time = time.expand_dims({'latitude': da_2t_annual.latitude, 
+                                      'longitude':da_2t_annual.longitude})
+        
+    # where() -- for each element, if condition is false, set element to nan
+    e1 = expanded_time.where(expanded_time <= gs_end, 0.0)
+    e2 = e1.where(e1 >= gs_beg, 0.0)
+        
+    # make 1/np.nan array
+    selector = e2.where(e2==0.0,1.) 
+    
+    # Now that we have an indexer array that selects the elements we want, we can calculate our result
+    # Select VPD within the GS 
+    selected_data = vpd * selector # Multidimensional boolean indexing is not supported...
+       
+    # Calculate mean over the growing season
+    vpd = selected_data.where(selected_data > 0).mean(dim='time')
         
     # Assign coordinate and rename
     vpd = vpd.assign_coords(time=y).rename('vpd').astype(float)
@@ -446,7 +547,7 @@ def heatwave_magnitude_index(da_t2max, T90p, p75max, p25max):
     print('Calculating heatwave magnitude index for '+str(y))
         
     # Select annual temperature
-    da_t2max_annual = da_t2max - 273.15 #.where(da_t2max.time.dt.year == y, drop=True)#.sel(latitude=61, longitude=27)
+    da_t2max_annual = (da_t2max - 273.15)#.sel(latitude=67.6, longitude=133.4).compute()
         
     # 1/np.nan field (land sea mask)
     ls_mask = da_t2max_annual.isel(time=0).notnull()
@@ -513,7 +614,7 @@ def freezing_degree_days(da_t2mean_winter):
     ## daily average temperatures are reached, but not later than Feb 1st. The end
     ## of season is defined when the cumulative minimum of freezing season occurs.
     ## 
-    ## The degree days are negative
+    ## The degree days are positive
     ##
     
     ## Ruosteenoja et al. (2016): https://doi.org/10.1002/joc.4535
@@ -530,6 +631,10 @@ def freezing_degree_days(da_t2mean_winter):
     # Select annual temperature and change Kelvin to Celsius
     da_t2mean_annual = da_t2mean_winter - 273.15
     
+    # 1/np.nan field (land sea mask)
+    ls_mask = da_t2mean_annual.isel(time=0).notnull()
+    ls_mask = ls_mask.where(ls_mask, np.nan)
+    
      # cumulative temperature sum
     cumsum_da = da_t2mean_annual.cumsum(dim='time', skipna=False)
         
@@ -544,9 +649,9 @@ def freezing_degree_days(da_t2mean_winter):
     day_max = cumsum_da.sel(time=slice(str(y-1)+'-07-01', str(y)+'-01-31')).argmax(dim='time')
     fs_beg = day_max + 1
         
-    # Define the end of growing season
+    # Define the end of freezing season
     fs_end = cumsum_da.sel(time=slice(str(y)+'-02-01', str(y)+'-06-30')).argmin(dim='time')
-    # Select only those location where the end is non-zero
+    # Select only those locations where the end is non-zero
     fs_end = fs_end.where(fs_end>0)
         
     # Add the missing days from Jul-Jan to get the actual day of year
@@ -568,14 +673,14 @@ def freezing_degree_days(da_t2mean_winter):
     # thus replace above-zero temperatures by zero
     selected_data = da_t2mean_annual.where(da_t2mean_annual<=0,0) * selector # Multidimensional boolean indexing is not supported...
        
-    # Calculate sum
-    fdd = selected_data.sum(dim='time', skipna=True)
+    # Calculate sum and multiply by -1 to get positive values
+    fdd = selected_data.sum(dim='time', skipna=True) *-1
     
     # Assign coordinate and rename
-    fdd = fdd.where(fdd<0).assign_coords(time=y).rename('fdd').astype(float)
+    fdd = fdd.where(fdd>0, 0)*ls_mask.assign_coords(time=y).rename('fdd').astype(float)
         
     # Assign attributes
-    fdd.attrs['units'] = 'C day'
+    fdd.attrs['units'] = 'C days'
     fdd.attrs['long_name'] = 'Freezing degree day sum'
         
     return fdd
@@ -606,17 +711,30 @@ def snow_season_length(da_snowc, ):
     # fill the nans of the array with obviously wrong value
     snow_covered = snow_covered.fillna(-99999)
     
+    # areas which are snow-covered all year
+    mean_snow = snow_covered.mean(dim='time')
+    snow_all_year = xr.where(mean_snow==1, True, False)
+    
+    # areas which are snow-free all year
+    snowless_all_year = xr.where(mean_snow==0, True, False)
+    
     # first day of snow
     fds = snow_covered.argmax(dim='time')
+
     
     # last day of snow
     lds = len(snow_covered.time) - snow_covered.reindex(time=snow_covered.time[::-1]).argmax(dim='time')
     
     # length of snow season
-    lss = (lds - fds).assign_coords(time=y).rename('lss')
+    lss = (lds - fds).assign_coords(time=y)
+    
+    # mark those regions which are snow-covered all year with 365
+    lss = xr.where(snow_all_year, da_snowc.shape[0], lss)
+    # mark those regions which are snow-free all year with 0
+    lss = xr.where(snowless_all_year, 0, lss)
     
     # replace the wrong values with NaN
-    lss = lss.where(lss < 365).astype(float)
+    lss = lss*ls_mask.astype(float).rename('lss').assign_coords(time=y)
         
     # Assign attributes
     lss.attrs['units'] = ' '
@@ -664,10 +782,135 @@ def longest_snow_period(da_snowc,):
     lsp = cumulative_snow_length.max(dim='time', skipna=True)
           
     # Assign coordinate and rename
-    lsp = (lsp*ls_mask).assign_coords(time=y).rename('lcs').astype(float)
+    lsp = (lsp*ls_mask).assign_coords(time=y).rename('lsp').astype(float)
         
     # Assign attributes
     lsp.attrs['units'] = ' '
     lsp.attrs['long_name'] = 'The longest continuous period of snow'
 
     return lsp
+
+def average_wind_speed(da_u10, da_v10):
+    
+    ## This function calculates the annual average wind speed 
+    
+    import warnings 
+    
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+        
+    # year
+    y = da_u10.time.dt.year[-1].values
+    
+    print('Calculating the average wind speed for '+str(y), flush=True)
+
+    # calculate wind speed for each day
+    ws = np.sqrt(da_u10**2 + da_v10**2)
+    
+    # calculate annual average
+    aws = ws.mean(dim='time').assign_coords(time=y).rename('aws').astype(float)
+    
+    # Assign attributes
+    aws.attrs['units'] = 'm s^-1'
+    aws.attrs['long_name'] = 'The annual average 10-metre wind speed'
+    
+    return aws
+
+def gale_wind_events(da_u10max, da_v10max):
+    
+    ## This function calculates the annual average wind speed 
+    
+    import warnings 
+    
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+        
+    # year
+    y = da_u10max.time.dt.year[-1].values
+    
+    print('Calculating the number of gale wind events for '+str(y), flush=True)
+    
+    # 1/np.nan field (land sea mask)
+    ls_mask = da_u10max.isel(time=0).notnull()
+    ls_mask = ls_mask.where(ls_mask, np.nan)
+
+    # calculate wind speed for each day
+    ws = np.sqrt(da_u10max**2 + da_v10max**2)
+    
+    # Mark grid cells with wind speed < gale with 0
+    ws_events = ws.where((ws > 17.0) | (ws.isnull()), 0)
+        
+    # Mark grid cells with wind speed > gale with 1
+    ws_events = ws_events.where((ws_events < 17.0) | (ws_events.isnull()),1)
+    
+    gwe = ws_events.sum(dim='time')*ls_mask.assign_coords(time=y).rename('aws').astype(float)
+    
+    # Assign attributes
+    gwe.attrs['units'] = ' '
+    gwe.attrs['long_name'] = 'The annual number of gale wind events'
+    
+    return gwe
+
+def annual_mean_temperature(da_t2mean_summer):
+    
+    ## This function calculates the annual average wind speed 
+    
+    import warnings 
+    
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+        
+    # year
+    y = da_t2mean_summer.time.dt.year[-1].values
+    
+    print('Calculating the annual mean temperature for '+str(y), flush=True)
+
+    # calculate annual average
+    tavg = da_t2mean_summer.mean(dim='time').assign_coords(time=y).rename('tavg').astype(float)
+    
+    # Assign attributes
+    tavg.attrs['units'] = 'K'
+    tavg.attrs['long_name'] = 'The annual average 2-metre temperature'
+    
+    return tavg
+
+def annual_precipitation(da_tp_summer):
+    
+    ## This function calculates the annual average wind speed 
+    
+    import warnings 
+    
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+        
+    # year
+    y = da_tp_summer.time.dt.year[-1].values
+    
+    print('Calculating the annual precipitation for '+str(y), flush=True)
+
+    # calculate annual average
+    tpa = da_tp_summer.sum(dim='time', skipna=False).assign_coords(time=y).rename('tpa').astype(float)
+    
+    # Assign attributes
+    tpa.attrs['units'] = 'm'
+    tpa.attrs['long_name'] = 'The annual precipitation sum'
+    
+    return tpa
+
+def annual_snowfall(da_sf):
+    
+    ## This function calculates the annual average wind speed 
+    
+    import warnings 
+    
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+        
+    # year
+    y = da_sf.time.dt.year[-1].values
+    
+    print('Calculating the annual snowfall for '+str(y), flush=True)
+
+    # calculate annual average
+    sfa = da_sf.sum(dim='time', skipna=False).assign_coords(time=y).rename('sfa').astype(float)
+    
+    # Assign attributes
+    sfa.attrs['units'] = 'm'
+    sfa.attrs['long_name'] = 'The annual snowfall sum'
+    
+    return sfa
