@@ -3,6 +3,9 @@
 """
 Created on Wed Mar 30 08:34:42 2022
 
+These routines read data from GHCN-D database. The stations used for ARCLIM 
+validation are defined here.
+
 @author: rantanem
 """
 import pandas as pd
@@ -24,6 +27,8 @@ def ghcn_stations():
     return list_of_stations
 
 def ghcn_station_offsets():
+    
+    # these offsets are used in plotting the station names to the map
     
     offsets = {'SV000001008':(28,-10),
                'FI000007501':(28,-10),
