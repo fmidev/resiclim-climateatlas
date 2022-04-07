@@ -24,7 +24,9 @@ def read_daily_data_from_allas(fs, years, yeartype,  var, func):
                  'snow_cover':'snowc',
                  'total_precipitation':'tp',
                  'snowfall':'sf',
-                 'skin_temperature':'skt'}
+                 'skin_temperature':'skt',
+                 '10m_u_component_of_wind':'u10',
+                 '10m_v_component_of_wind':'v10'}
     
     ## all files
     files = fs.glob('resiclim/daily/'+var+'_'+func+'*')
@@ -46,9 +48,10 @@ def read_daily_data_from_allas(fs, years, yeartype,  var, func):
             
             
         print('Reading ERA5-Land '+func+' '+var+' for '+yearstring, flush=True)
+        
         ds = allas.read_mf_s3(fs, matching, chunks={'time':10}, combine='by_coords')
         # ds = allas.read_mf_s3(fs, matching, chunks={'latitude':90}, combine='by_coords')
-    
+        
         da = ds[variables[var]]
         
         da_list.append(da)
