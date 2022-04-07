@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Apr  4 15:15:30 2022
-
-@author: rantanem
-"""
-
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
 Created on Sat Mar 26 14:11:12 2022
 
 @author: rantanem
@@ -18,10 +10,9 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
-from scipy import stats, signal
-
+from scipy import stats
 import math
-from ghcn_routines import ghcn_stations
+import ghcn_routines as ghcn
 
 def rounddown(x):
     return int(math.floor(x / 10.0)) * 10
@@ -29,43 +20,24 @@ def rounddown(x):
 def roundup(x):
     return int(math.ceil(x / 10.0)) * 10
 
-def read_station_locations():
-    
-    ## read station location
-    locs = pd.read_csv('https://www.ncei.noaa.gov/pub/data/ghcn/daily/ghcnd-stations.txt', 
-                       delim_whitespace=True, 
-                       names=['station','lat','lon','D','E','F','G','H','I','J','K','L','M'])
-    locs.index = locs.station
-    
-    return locs[['lat','lon']]
-
-
 # list of stations and their names
-list_of_stations = ghcn_stations()
+list_of_stations = ghcn.ghcn_stations()
 
 abcs = ['a)','b)','c)','d)','e)','f)', 'g)', 'h)','i)']
 
 # read ARCLIM dataset
-arclim_ds = xr.open_dataset('/Users/rantanem/Downloads/resiclim_annual.nc')
+arclim_ds = xr.open_dataset('/Users/rantanem/Downloads/era5land_annual.nc')
 gdd_da = arclim_ds['Tmax_max']-273.15
 
 
 # read station locations
-locs = read_station_locations()
+station_locs = ghcn.read_station_locations()
 
 # read the station data
 gdd = pd.read_csv('/Users/rantanem/Documents/python/resiclim-climateatlas/validation/data/stations_daily_tmax.csv',
                   index_col=0)
 year1=gdd.index[0]
 year2=gdd.index[-1]
-
-
-# read station location coordinates from GHCN server
-station_locs = pd.DataFrame(index=gdd.columns, columns=['lat','lon'])
-for station in gdd.columns:
-    station_locs.loc[station].lat = locs.loc[station].lat
-    station_locs.loc[station].lon = locs.loc[station].lon
-
 
 
 fig, axarr = plt.subplots(nrows=3, ncols=3, figsize=(15, 15), constrained_layout=False, dpi=200,)
