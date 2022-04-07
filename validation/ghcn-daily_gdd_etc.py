@@ -4,8 +4,8 @@
 Created on Sat Mar 26 11:18:02 2022
 
 This script reads daily temperature values from NOAA GHCN-Daily archive,
-and calculates growing season degree days. FMI Sodankylä station data is 
-read from FMI archives. 
+and calculates growing season degree days, freezing degree days and 
+summer mean temperatures. FMI Sodankylä station data is read from FMI archives. 
 
 For Russian and Icelandic stations, TAVG (daily average temperature) is read.
 For North American stations, TMAX and TMIN (daily max and min temperatures) 
@@ -16,32 +16,11 @@ are read, and TAVG is calculated as the average of these two.
 import pandas as pd
 import numpy as np
 from fmi_routines import update_station_data
-from ghcn_routines import ghcn_stations
-
-
-def get_ghcn_daily_var(var, station, years):
-    
-    url = 'https://www.ncei.noaa.gov/pub/data/ghcn/daily/by_station/'+station+'.csv.gz'
-    
-    colnames=['staid', 'date', 'variable', 'value', 'flag1', 'flag2', 'flag3','flag4']
-    
-    ghcn_daily = pd.read_csv(url,low_memory=False,
-                         names=colnames, header=None)
-    
-    f = ghcn_daily[ghcn_daily.variable==var]
-    f.index = pd.to_datetime(f.date, format='%Y%m%d')
-    f = f[['value']]
-    f['value'] = f['value']/10
-    f.rename(columns={'value':var}, inplace=True)
-    
-    cond = np.isin(f.index.year, years)
-    
-    
-    return f[cond]
+import ghcn_routines as ghcn
 
 
 # list of stations and their names
-list_of_stations = ghcn_stations()
+list_of_stations = ghcn.ghcn_stations()
 
 # base value for thermal growing degree days in celcius
 basevalue = 5
@@ -70,20 +49,12 @@ for i, station in enumerate(list_of_stations):
         f = dataset['Average temperature'][cond]
     # US and Canadian TAVG is calculated from TX and TN
     elif (station[:2]=='US') | (station[:2]=='CA'):
-        f1 = get_ghcn_daily_var('TMAX', station, years)
-        f2 = get_ghcn_daily_var('TMIN', station, years)
+        f1 = ghcn.get_ghcn_daily_var('TMAX', station, years)
+        f2 = ghcn.get_ghcn_daily_var('TMIN', station, years)
         f = (f1.TMAX+f2.TMIN)/2
-        
-    # Svalbard is read from Nordli et al. (2020)
-    # elif station[:2]=='SV':
-    #     f = pd.read_excel('data/3614-Supplementary Material-30885-1-10-20200415.xlsx', 
-    #                           usecols=np.arange(0, 4))
-    #     f.index = pd.to_datetime(f[['Year', 'Month','Day']])
-    #     cond = np.isin(f.index.year, years)
-    #     f = f['T_daily '][cond]
     # for other stations, TAVG is read    
     else: 
-        f = get_ghcn_daily_var('TAVG', station, years)
+        f = ghcn.get_ghcn_daily_var('TAVG', station, years)
     
     # allocate data to the dataframe
     df_daily_data[station] = f.reindex(dates)
