@@ -20,31 +20,24 @@ from scipy import ndimage
 def is_jja(month):
     return (month >= 6) & (month <= 8)
 
-
-
 # list of stations and their names
 list_of_stations = ghcn.ghcn_stations()
 
 # read station location coordinates from GHCN server
-locs = ghcn.read_station_locations()
-station_locs = pd.DataFrame(index=list_of_stations, columns=['lat','lon'])
-for station in list_of_stations:
-    station_locs.loc[station].lat = locs.loc[station].lat
-    station_locs.loc[station].lon = locs.loc[station].lon
+station_locs = ghcn.read_station_locations()
 
 # years and dates for which the HWM is calculated
 years = np.arange(1960,2022)
 dates = pd.date_range(str(years[0])+'-01-01', str(years[-1])+'-12-31')
 
-# allocate dataframes
+# allocate empty dataframes
 df_daily_data = pd.DataFrame(index=dates, columns=list_of_stations)
 df_hwmi = pd.DataFrame(index=years, columns=list_of_stations)
 df_tmax = pd.DataFrame(index=years, columns=list_of_stations)
 
 
 
-
-# get the data; loop over stations
+# get the data; loop over the stations
 for i, station in enumerate(list_of_stations):
     
     print(list_of_stations[station])
@@ -54,36 +47,39 @@ for i, station in enumerate(list_of_stations):
         dataset = update_station_data(station='sodankyla')
         cond = np.isin(dataset.index.year, years)
         f = dataset['Maximum temperature'][cond]
-    # for other stations, read TX
+    # for other stations, read TX from GHCN-Daily
     else:
         f = ghcn.get_ghcn_daily_var('TMAX', station, years)
 
-
-    
     # allocate data to the dataframe
     df_daily_data[station] = f.reindex(dates)
     
+    # print the number of missing days
     print('Number of missing values:',np.sum(f.reindex(dates).isna().values),'\n')
   
 
-# Width of the selection window (days)
+# Width of the threshold selection window (days)
 struct = np.ones(31) 
 df_p90 = pd.DataFrame(index=np.unique(df_daily_data.index.dayofyear), columns=list_of_stations)
 df_25_75 = pd.DataFrame(index=[25, 75], columns=list_of_stations)
 
+# climatology years for the threshold 
+years_clim = np.arange(1981, 2011)
 
 
-
-# calculate the threshold for heat wave magnitude index (90th percentile)
+# calculate the threshold for heat wave magnitude index
+# (the 90th percentile of daily maximum temperature)
 for i, station in enumerate(list_of_stations):
     
-    station_data = df_daily_data[station]
-    years_clim = np.arange(1981, 2011)
-    cond = np.isin(station_data.index.year, years_clim)
-    station_data = station_data[cond]
+    station_data_all_years = df_daily_data[station]
+    
+    # select only the 1981-2010 years
+    cond = np.isin(station_data_all_years.index.year, years_clim)
+    station_data = station_data_all_years[cond]
     
     doy_values = np.unique(station_data.index.dayofyear)
     
+    # Loop over each day of year
     for day in doy_values:
         
         dayofyear = station_data.index.dayofyear == day
@@ -93,7 +89,8 @@ for i, station in enumerate(list_of_stations):
         temp = station_data[selection]
         
         df_p90[station][day] = np.nanpercentile(temp, 90)
-    
+ 
+
 # calculate the 25th and 75th percentiles of annual maxima
 for i, station in enumerate(list_of_stations):
     
