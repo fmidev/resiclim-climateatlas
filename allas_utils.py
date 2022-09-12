@@ -7,8 +7,6 @@ import s3fs, boto3, fsspec
 import xarray as xr
 import pandas as pd
 
-
-
 '''
 # Set up the S3 file system 
 access = os.getenv('S3_RESICLIM_ACCESS') 
