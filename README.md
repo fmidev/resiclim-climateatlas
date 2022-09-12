@@ -1,14 +1,15 @@
 # ARCLIM climate atlas
-Climate/weather indices derived and published in the RESICLIM project
+Climate and event-type indices derived and published in the RESICLIM project
 
 ## Python files
 
 ### Main program
 The ARCLIM variables are calculated in `main_climateatlas.py`.
-The code is tailored to use CSC Allas file system.
+The code reads daily ERA5-Land data from CSC Allas object storage system and calculates
+the ARCLIM indices. The ARCLIM indices are saved in both NETCDF4 and GeoTIFF format.
 
 ### Calculation of the indices
-The scripts to calculate the various indices can be found from `indices.py`.
+The module to calculate the various indices can be found from `indices.py`.
 
 ### Input/output
 IO-utils are written in `io_utils.py`.
