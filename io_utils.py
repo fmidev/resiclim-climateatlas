@@ -10,9 +10,9 @@ system.
 """
 import xarray as xr
 import pandas as pd
-import allas_utils as allas
 import warnings
 import sys
+import allas_utils as allas
 
 
 
@@ -149,6 +149,19 @@ def add_attributes(ds):
     ds.attrs['history'] = datetime.utcnow().strftime(format='%Y-%m-%d %H:%M:%S') + ' Python'
     
     return ds
+
+def da_to_geotiff(da):
+    
+    # set spatial dimensions
+    geotiff = da.rio.set_spatial_dims(x_dim='longitude', y_dim='latitude')
+
+
+    # Define the CRS projection
+    geotiff.rio.write_crs("epsg:4326", inplace=True)
+
+    return geotiff.rio
+
+
     
     
 
