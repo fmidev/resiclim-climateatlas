@@ -67,7 +67,7 @@ ds_out.attrs['history'] = datetime.utcnow().strftime(format='%Y-%m-%d %H:%M:%S')
 
 
 # save the data as a netcdf file
-ds_out.to_netcdf(outpath, format='NETCDF4')
+ds_out.to_netcdf(outpath, format='NETCDF4', encoding={'doy': {'dtype': 'i4'}})
 
 print('Done!')
 

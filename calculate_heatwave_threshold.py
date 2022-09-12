@@ -12,10 +12,6 @@ and 31-day moving window (31 x 30 values).
 The heatwave magnitude index is based on this paper:
 https://iopscience.iop.org/article/10.1088/1748-9326/ab6398/meta 
 
-### NOTE!! ###
-Currently the script calculates also 25th and 75th percentiles. This is probably
-not necessary. 
-
 @author: mprantan
 """
 
@@ -62,10 +58,9 @@ da_t2max = io_utils.read_daily_data_from_allas(fs, years, 'summer', '2m_temperat
 # Width of the selection window (days)
 struct = np.ones(31) 
     
-# Arrays for saving the result
+# Array for saving the result
 p90_array = np.empty((366, np.shape(da_t2max)[1], np.shape(da_t2max)[2]))
-#p75_array = np.empty((366, np.shape(da_t2max)[1], np.shape(da_t2max)[2]))
-#p25_array = np.empty((366, np.shape(da_t2max)[1], np.shape(da_t2max)[2]))
+
 
 doy_values = np.unique(da_t2max['time.dayofyear'].values)
     
@@ -83,22 +78,15 @@ for day in doy_values:
 
     # Calculate the percentiles and save into arrays
     p90_array[int(day)-1,:, :] = np.nanpercentile(da_t2max.sel(time=selection), 90, axis=0)
-    #p75_array[int(day)-1,:, :] = np.nanpercentile(da_t2max.sel(time=selection), 75, axis=0)
-    #p25_array[int(day)-1,:, :] = np.nanpercentile(da_t2max.sel(time=selection), 25, axis=0)
     
     end2 = time.time()
     print('Calculation lasted '+str(np.round(end2 - start2, 2))+' seconds')
 
 
 p90_da = save_as_dataarray(p90_array, doy_values, da_t2max)
-#p75_da = save_as_dataarray(p75_array, doy_values, da_t2max)
-#p25_da = save_as_dataarray(p25_array, doy_values, da_t2max)
 
 ### Create dataset for the output variables
 ds_out = p90_da.to_dataset(name='p90')
-#ds_out['p75'] = p75_da
-#ds_out['p25'] = p25_da
-
 ds_out = ds_out.compute()
 
 # add time attribute
@@ -113,7 +101,7 @@ ds_out.attrs['history'] = datetime.utcnow().strftime(format='%Y-%m-%d %H:%M:%S')
 
 
 # save the data as a netcdf file
-ds_out.to_netcdf(outpath, format='NETCDF4')
+ds_out.to_netcdf(outpath, format='NETCDF4', encoding={'time': {'dtype': 'i4'}})
 
 print('Done!')
 
