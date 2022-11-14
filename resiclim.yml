@@ -1,0 +1,27 @@
+channels:
+  - conda-forge
+dependencies:
+  - boto3
+  - cartopy
+  - cdsapi
+  - dask
+  - ecmwf-api-client
+  - eofs
+  - fiona
+  - h5netcdf
+  - matplotlib
+  - netcdf4
+  - numpy
+  - pandas
+  - pymannkendall
+  - pyproj
+  - python-cdo
+  - regionmask
+  - rioxarray
+  - s3fs
+  - scikit-learn
+  - scipy
+  - seaborn
+  - spyder
+  - xarray
+  - xesmf
