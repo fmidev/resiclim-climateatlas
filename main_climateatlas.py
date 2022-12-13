@@ -50,14 +50,15 @@ variables = {'growing_season_length':    False,
              'growing_degree_days':      False, 
              'frost_growing_season':     False,
              'freezing_degree_days':     False,
-             'rain_on_snow_freezing':    False,
-             'rain_on_snow_thawing':     False,
+             'rain_on_snow':             False,
              'winter_warming_events':    False,
              'winter_warming_intensity': False,
-             'heatwave_magnitude':       True,
-             'vpd_magnitude_index':      True,
-             'summer_warmth_index':      True,
-             'snow_season_length':       False,
+             'heatwave_magnitude':       False,
+             'vpd_magnitude_index':      False,
+             'summer_warmth_index':      False,
+             'snow_season_length':       True,
+             'onset_snow_season':        False,
+             'end_snow_season':          False,
              'high_wind_events':         False, 
              'annual_mean_temperature':  False,
              'annual_precipitation':     False,
@@ -79,14 +80,15 @@ shortnames = {'growing_season_length':    'GSL',
               'growing_degree_days':      'GDD', 
               'frost_growing_season':     'FGS',
               'freezing_degree_days':     'FDD',
-              'rain_on_snow_freezing':    'ROSF',
-              'rain_on_snow_thawing':     'ROST',
+              'rain_on_snow':             'ROS',
               'winter_warming_events':    'WWE',
               'winter_warming_intensity': 'WWI',
               'heatwave_magnitude':       'HWMI', 
               'vpd_magnitude_index':      'VPDI',
               'summer_warmth_index':      'SWI',
               'snow_season_length':       'SSL',
+              'onset_snow_season':        'SSO',
+              'end_snow_season':          'SSE',
               'high_wind_events':         'HWE',
               'annual_mean_temperature':  'TAVG',
               'annual_precipitation':     'PRA',
@@ -162,14 +164,21 @@ for year in years:
         
     # # Snow season length
     if variables["snow_season_length"]:
-        ssl_tmp = indices.snow_season_length(da_snowc, )
+        ssl_tmp = indices.snow_season_length(da_snowc)
         da_lists["snow_season_length"].append(ssl_tmp.compute())
 
+    if variables["onset_snow_season"]:
+        sso_tmp,_ = indices.onset_end_snow_season(da_snowc)
+        da_lists["onset_snow_season"].append(sso_tmp.compute())
+
+    if variables["end_snow_season"]:
+        _,sse_tmp = indices.onset_end_snow_season(da_snowc)
+        da_lists["end_snow_season"].append(sse_tmp.compute())
+
     # rain-on-snow events 
-    if variables["rain_on_snow_freezing"]:
-        rosf_tmp, rost_tmp = indices.rain_on_snow(da_tp_winter, da_sf, da_snowc, rain_threshold)
-        da_lists["rain_on_snow_freezing"].append(rosf_tmp.compute())
-        da_lists["rain_on_snow_thawing"].append(rost_tmp.compute())
+    if variables["rain_on_snow"]:
+        ros_tmp = indices.rain_on_snow(da_tp_winter, da_sf, da_snowc, rain_threshold)
+        da_lists["rain_on_snow"].append(ros_tmp.compute())
         
     # # winter warming events 
     if variables["winter_warming_events"]:
@@ -236,7 +245,6 @@ for var in da_lists:
     ds_out[var].time.attrs['long_name'] = "time"
 
     # add global attributes
-    ds_out[var].attrs['Conventions'] = 'CF-1.7'
     ds_out[var].attrs['title'] = 'ARCLIM Bioclimatic indices'
     ds_out[var].attrs['Institution'] = 'Finnish Meteorological Institute'
     ds_out[var].attrs['source'] = 'ERA5-Land'
