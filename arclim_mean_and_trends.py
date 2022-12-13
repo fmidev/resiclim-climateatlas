@@ -27,9 +27,13 @@ path_for_annual_data = '/projappl/project_2005030/climateatlas/out/annual/nc/'
 # define the output data path
 outpath = '/projappl/project_2005030/climateatlas/out/'
 
-# define files and sort by date
-files = glob.glob(path_for_annual_data + '*.nc')
-files.sort(key=os.path.getmtime)
+# define files
+variables_in_order = ['GSL','GDD','FGS','FDD','ROS','WWE','WWI','HWMI','VPDI',
+                      'SWI','SSL','SSO','SSE','HWE','TAVG','PRA','SFA','WSA']
+
+# append the path to the variable names
+files = [path_for_annual_data + "arclim_"+ s +".nc" for s in variables_in_order]
+
 
 # Allocate lists for the variables
 list_of_trends = []
@@ -89,19 +93,22 @@ for i, f in enumerate(files):
     p_values_da = da.sel(time=2021).copy(data=p_values) * ls_mask
    
     # add attributes
-    trends_da.attrs['long_name'] = var + ' '+year1+'-'+year2+' trend' 
-    p_values_da.attrs['long_name'] = var + ' '+year1+'-'+year2+' trend p-value' 
+    trends_da.attrs['long_name'] = da.long_name + ' '+year1+'-'+year2+' trend'
+    trends_da.attrs['short_name'] = da.short_name
+    p_values_da.attrs['long_name'] = da.long_name + ' '+year1+'-'+year2+' p-value'
+    p_values_da.attrs['short_name'] = da.short_name
     
     # save trend array
-    list_of_trends.append(trends_da)
-    list_of_pvals.append(p_values_da)
+    list_of_trends.append(trends_da.rename(var))
+    list_of_pvals.append(p_values_da.rename(var))
     
     # calculate mean conditions over 1991-2020
     mean_da = da.sel(time=slice('1991','2020')).mean(dim='time')
-    mean_da.attrs['long_name'] = var + ' 1991-2020 mean'  
+    mean_da.attrs['long_name'] = da.long_name + ' 1991-2020'
+    mean_da.attrs['short_name'] = da.short_name
     
     # save mean array
-    list_of_means.append(mean_da)
+    list_of_means.append(mean_da.rename(var))
     
   
 # make datasets
@@ -116,7 +123,6 @@ for d in list_of_trends[1:]:
 
     
 # add global attributes
-ds_trend.attrs['Conventions'] = 'CF-1.7'
 ds_trend.attrs['title'] = 'ARCLIM Bioclimatic indices'
 ds_trend.attrs['Institution'] = 'Finnish Meteorological Institute'
 ds_trend.attrs['source'] = 'ERA5-Land'
@@ -140,7 +146,6 @@ for d in list_of_pvals[1:]:
 
     
 # add global attributes
-ds_pvals.attrs['Conventions'] = 'CF-1.7'
 ds_pvals.attrs['title'] = 'ARCLIM Bioclimatic indices'
 ds_pvals.attrs['Institution'] = 'Finnish Meteorological Institute'
 ds_pvals.attrs['source'] = 'ERA5-Land'
@@ -163,7 +168,6 @@ for d in list_of_means[1:]:
     ds_mean[d.name] = d
     
 # add global attributes
-ds_mean.attrs['Conventions'] = 'CF-1.7'
 ds_mean.attrs['title'] = 'ARCLIM Bioclimatic indices'
 ds_mean.attrs['Institution'] = 'Finnish Meteorological Institute'
 ds_mean.attrs['source'] = 'ERA5-Land'
