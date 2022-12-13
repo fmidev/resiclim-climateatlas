@@ -66,8 +66,9 @@ def thermal_growing_season_length(da_t2mean_summer, basevalue):
     
             
     # Assign attributes
-    gsl.attrs['units'] = ''
-    gsl.attrs['long_name'] = 'Length of thermal growing season'
+    gsl.attrs['units'] = 'day'
+    gsl.attrs['long_name'] = 'Thermal growing season length'
+    gsl.attrs['short_name'] = 'GSL'
 
         
     return gsl
@@ -143,7 +144,8 @@ def thermal_growing_degree_days(da_t2mean_summer, basevalue):
         
     # Assign attributes
     gdd.attrs['units'] = 'C day'
-    gdd.attrs['long_name'] = 'Growing degree day sum'
+    gdd.attrs['long_name'] = 'Thermal growing degree day sum'
+    gdd.attrs['short_name'] = 'GDD'
         
     return gdd
 
@@ -154,6 +156,9 @@ def rain_on_snow(da_tp_winter, da_sf, da_snowc, rain_threshold):
     
     def is_mamj(month):
         return (month >= 3) | (month <= 6)
+    
+    def is_ndjfma(month):
+        return (month >= 11) | (month <= 4)
     
     import warnings
     warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -181,86 +186,21 @@ def rain_on_snow(da_tp_winter, da_sf, da_snowc, rain_threshold):
     # ROS events
     ros_events = (snow_covered * rain)
     
-    # Divide the events to freezing ROS (ROSF) and thawing ROS (ROST) by
-    # the months of occurrence
-    rosf_events = ros_events.sel(time=is_ndjf(ros_events['time.month']))
-    rost_events = ros_events.sel(time=is_mamj(ros_events['time.month']))
+    # Select only Nov-Apr period of the year
+    ros_events = ros_events.sel(time=is_ndjfma(ros_events['time.month']))
         
     # Calculate sum
-    rosf = rosf_events.sum(dim='time', skipna=False)
-    rost = rost_events.sum(dim='time', skipna=False)
-        
-    # Assign coordinate and rename
-    rosf = rosf.assign_coords(time=y).rename('rosf').astype(float)
-    rost = rost.assign_coords(time=y).rename('rost').astype(float)
-        
-    # Assign attributes
-    rosf.attrs['units'] = 'events per year'
-    rosf.attrs['long_name'] = 'Rain-on-snow events in Nov-Feb'
-    rost.attrs['units'] = 'events per year'
-    rost.attrs['long_name'] = 'Rain-on-snow events in Mar-Jun'
-    
-    return rosf, rost
-
-def rain_on_snow_temp(da_t2mean_winter, da_tp_winter, da_sf, da_snowc, rain_threshold):
-    
-    def is_ndjfma(month):
-        return (month >= 11) | (month <= 4)
-    
-    # this function calculates rain-on-snow events
-    
-    import warnings
-    warnings.simplefilter("ignore", category=RuntimeWarning)
-    
-    # year
-    y = da_tp_winter.time.dt.year[-1].values
-    
-    print('Calculating the number of rain-on-snow (temperature method) events for '+str(y))        
-               
-    # Obtain liquid precipitation by subtracting the snowfall from total precipitation
-    da_lp_annual = da_tp_winter - da_sf
-        
-    # When the snow cover is 0.5 or greater in the grid cell,
-    # we consider it snow-covered. Retain nan-points over the sea
-        
-    # Mark grid cells with snow cover < 50 with 0
-    snow_covered = da_snowc.where((da_snowc > 50) | (da_snowc.isnull()), 0)
-        
-    # Mark grid cells with snow cover > 50 with 1
-    snow_covered = snow_covered.where((snow_covered < 50) | (snow_covered.isnull()),1)
-        
-    # Total precipitation needs to be higher than the threshold
-    tp_events = da_tp_winter.where(da_tp_winter > rain_threshold, np.nan).notnull()
-    
-    # Liquid precipitation needs to be higher than the threshold
-    rain = da_lp_annual.where(da_lp_annual > rain_threshold, np.nan).notnull()
-        
-    # Days with daily mean temperature > 0
-    da_t2mean_winter_celsius = da_t2mean_winter - 273.15
-    temp_events = da_t2mean_winter.where(da_t2mean_winter_celsius >= 0.5, np.nan).notnull()
-    
-    # ROT events
-    rot_events = (snow_covered * tp_events * temp_events)
-    
-    # ROS events
-    ros_events = (snow_covered * rain)
-    
-    # Select only NDJFM period
-    # rot_events = rot_events.sel(time=is_ndjfma(rot_events['time.month']))
-    # ros_events = ros_events.sel(time=is_ndjfma(ros_events['time.month']))
-        
-    # Calculate sum
-    rot = rot_events.sum(dim='time', skipna=False)
     ros = ros_events.sum(dim='time', skipna=False)
         
     # Assign coordinate and rename
-    rot = rot.assign_coords(time=y).rename('rot').astype(float)
+    ros = ros.assign_coords(time=y).rename('ros').astype(float)
         
     # Assign attributes
-    rot.attrs['units'] = 'events per year'
-    rot.attrs['long_name'] = 'Rain-on-snow (temperature) events'
+    ros.attrs['units'] = 'events per year'
+    ros.attrs['long_name'] = 'Number of rain-on-snow events'
+    ros.attrs['short_name'] = 'ROS'
     
-    return rot
+    return ros
 
 def rain_on_snow_intensity(da_tp, da_sf, da_snowc, rain_threshold):
     
@@ -368,8 +308,9 @@ def winter_warming_events(da_t2mean_winter, da_snowc):
     wwe = wwe.assign_coords(time=y).rename('wwint').astype(float)
         
     # Assign attributes
-    wwe.attrs['units'] = ''
+    wwe.attrs['units'] = 'events per year'
     wwe.attrs['long_name'] = 'Number of winter warming events'
+    wwe.attrs['short_name'] = 'WWE'
         
     return wwe
 
@@ -434,8 +375,9 @@ def winter_warming_intensity(da_t2mean_winter, da_snowc):
     wwe_int = ww_accumulative_int.assign_coords(time=y).rename('wwint').astype(float)
         
     # Assign attributes
-    wwe_int.attrs['units'] = 'degrees'
-    wwe_int.attrs['long_name'] = 'Total intensity of winter warming events'
+    wwe_int.attrs['units'] = 'C day'
+    wwe_int.attrs['long_name'] = 'Intensity of winter warming events'
+    wwe_int.attrs['short_name'] = 'WWI'
         
     return wwe_int
 
@@ -511,6 +453,7 @@ def frost_during_growing_season(da_t2mean_summer, da_skt, basevalue):
     # Assign attributes
     fgs.attrs['units'] = 'C day'
     fgs.attrs['long_name'] = 'Frost during the growing season'
+    fgs.attrs['short_name'] = 'FGS'
         
     return fgs
 
@@ -687,7 +630,8 @@ def vpd_magnitude_index(da_t2mean_summer, da_d2mean, T90p_vpd, p75vpd, p25vpd):
         
     # Assign attributes
     vmi.attrs['units'] = ''
-    vmi.attrs['long_name'] = 'VPD magnitude index'
+    vmi.attrs['long_name'] = 'Vapor pressure deficit magnitude index'
+    vmi.attrs['short_name'] = 'VPDI'
     
     return vmi
 
@@ -767,8 +711,9 @@ def heatwave_magnitude_index(da_t2max, T90p, p75max, p25max):
     hwi = (hwi*ls_mask).assign_coords(time=y).rename('hwi').astype(float)
         
     # Assign attributes
-    hwi.attrs['units'] = ' '
+    hwi.attrs['units'] = ''
     hwi.attrs['long_name'] = 'Heatwave magnitude index'
+    hwi.attrs['short_name'] = 'HWMI'
         
     return hwi
     
@@ -848,66 +793,11 @@ def freezing_degree_days(da_t2mean_winter):
         
     # Assign attributes
     fdd.attrs['units'] = 'C days'
-    fdd.attrs['long_name'] = 'Freezing degree day sum'
+    fdd.attrs['long_name'] = 'Freezing degree days'
+    fdd.attrs['short_name'] = 'FDD'
         
     return fdd
 
-def snow_season_length2(da_snowc, ):
-    
-    ## This function calculates the length of snow season,
-    ## defined by the time period between first and last snow date.
-    ## The first and last snow date are defined as the first and last days when snow 
-    ## cover fraction is > 50 %
-    ## The length is given in days
-    
-    # year
-    y = da_snowc.time.dt.year[-1].values
-        
-    print('Calculating snow season lenght for '+str(y), flush=True)
-    
-    # 1/np.nan field (land sea mask)
-    ls_mask = da_snowc.isel(time=0).notnull()
-    ls_mask = ls_mask.where(ls_mask, np.nan)
-        
-    # Mark grid cells with snow cover < 50 with 0
-    snow_covered = da_snowc.where((da_snowc > 50) | (da_snowc.isnull()), 0)
-        
-    # Mark grid cells with snow cover > 50 with 1
-    snow_covered = snow_covered.where((snow_covered < 50) | (snow_covered.isnull()),1)
-    
-    # fill the nans of the array with obviously wrong value
-    snow_covered = snow_covered.fillna(-99999)
-    
-    # areas which are snow-covered all year
-    mean_snow = snow_covered.mean(dim='time')
-    snow_all_year = xr.where(mean_snow==1, True, False)
-    
-    # areas which are snow-free all year
-    snowless_all_year = xr.where(mean_snow==0, True, False)
-    
-    # first day of snow
-    fds = snow_covered.argmax(dim='time')
-
-    
-    # last day of snow
-    lds = len(snow_covered.time) - snow_covered.reindex(time=snow_covered.time[::-1]).argmax(dim='time')
-    
-    # length of snow season
-    lss = (lds - fds).assign_coords(time=y)
-    
-    # mark those regions which are snow-covered all year with 365
-    lss = xr.where(snow_all_year, da_snowc.shape[0], lss)
-    # mark those regions which are snow-free all year with 0
-    lss = xr.where(snowless_all_year, 0, lss)
-    
-    # replace the wrong values with NaN
-    lss = lss*ls_mask.astype(float).rename('lss').assign_coords(time=y)
-        
-    # Assign attributes
-    lss.attrs['units'] = ' '
-    lss.attrs['long_name'] = 'Length of snow season'
-
-    return lss
 
 def snow_season_length(da_snowc,):
     
@@ -917,11 +807,16 @@ def snow_season_length(da_snowc,):
     ## cover fraction is > 50 %
     ## The length is given in days
         
-    import warnings 
+    import warnings
+    import datetime
+    import calendar
+
     
+    def days_in_year(year=datetime.datetime.now().year):
+        return 365 + calendar.isleap(year)
+
     # year
-    y = da_snowc.time.dt.year[-1].values
-    
+    y = da_snowc.time.dt.year[-1].values 
 
     warnings.simplefilter("ignore", category=RuntimeWarning)
         
@@ -947,15 +842,100 @@ def snow_season_length(da_snowc,):
         
     # The longest continuous snow period is the maximum of the cumulative sum
     ssl = cumulative_snow_length.max(dim='time', skipna=True)
-          
+             
     # Assign coordinate and rename
     ssl = (ssl*ls_mask).assign_coords(time=y).rename('ssl').astype(float)
+
         
-    # Assign attributssles
-    ssl.attrs['units'] = ''
+    # Assign attributes
+    ssl.attrs['units'] = 'day'
     ssl.attrs['long_name'] = 'Snow season length'
+    ssl.attrs['short_name'] = 'SSL'
 
     return ssl
+
+def onset_end_snow_season(da_snowc,):
+    
+    ## This function calculates the onset and end of continuous snow season,
+    ## defined by the continuous time period between first and last snow date.
+    ## The first and last snow date are defined as the first and last days when snow 
+    ## cover fraction is > 50 %
+    ## The length is given in days
+        
+    import warnings
+    import datetime
+    import calendar
+
+    
+    def days_in_year(year=datetime.datetime.now().year):
+        return 365 + calendar.isleap(year)
+
+    # year
+    y = da_snowc.time.dt.year[-1].values
+    
+    # number of days in the previous year
+    ndays = days_in_year(y-1)
+
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+        
+    print('Calculating the onset and end of snow season for '+str(y), flush=True)
+           
+    # 1/np.nan field (land sea mask)
+    ls_mask = da_snowc.isel(time=0).notnull()
+    ls_mask = ls_mask.where(ls_mask, np.nan)
+
+    # Mark grid cells with snow cover < 50 with 0
+    snow_covered = da_snowc.where((da_snowc > 50) | (da_snowc.isnull()), 0)
+        
+    # Mark grid cells with snow cover > 50 with 1
+    snow_covered = snow_covered.where((snow_covered < 50) | (snow_covered.isnull()),1)
+        
+    # calculate cumulative sum of snow covered days
+    snowvalues = snow_covered.values
+    cums = np.cumsum(snowvalues, axis=0)
+    weights_by_duration_array = cums - np.maximum.accumulate(cums * (snowvalues==0), axis=0)  
+    
+    # make labeled xarray
+    cumulative_snow_length = snow_covered.copy(data=weights_by_duration_array)
+        
+    # The longest continuous snow period is the maximum of the cumulative sum
+    ssl = cumulative_snow_length.max(dim='time', skipna=True)
+    
+    # Date of the latest snow-covered day = end of snow season
+    ssl_end_date = cumulative_snow_length.idxmax(dim='time', skipna=True)
+    ssl_end = ssl_end_date.dt.dayofyear
+    
+    # Date of the first snow-covered day = onset of snow season
+    ssl_beg_date = ssl_end_date - ssl.astype("timedelta64[D]")
+    
+    # add 365 to the values below 180 
+    cond = ssl_beg_date.dt.dayofyear<180
+    ssl_beg = xr.where(cond, ssl_beg_date.dt.dayofyear+ndays, ssl_beg_date.dt.dayofyear)
+    
+    # subtract 365 from the values above 200 
+    cond = ssl_end_date.dt.dayofyear>200
+    ssl_end = xr.where(cond, ssl_end-ndays, ssl_end)
+
+    # Replace SSL onset and end with NaN on those locations where SSL is 0
+    ssl_beg = xr.where(ssl==0, np.nan, ssl_beg)
+    ssl_end = xr.where(ssl==0, np.nan, ssl_end)
+          
+    # Assign coordinate and rename
+    ssl_beg = (ssl_beg*ls_mask).assign_coords(time=y).rename('ssb').astype(float)
+    ssl_end = (ssl_end*ls_mask).assign_coords(time=y).rename('sse').astype(float)
+        
+    # Assign attributes
+    
+    ssl_beg.attrs['units'] = 'day of year'
+    ssl_beg.attrs['long_name'] = 'Onset of snow season'
+    ssl_beg.attrs['short_name'] = 'SSO'
+    
+    ssl_end.attrs['units'] = 'day of year'
+    ssl_end.attrs['long_name'] = 'End of snow season '
+    ssl_end.attrs['short_name'] = 'SSE'
+
+    return ssl_beg, ssl_end
+
 
 def average_wind_speed(da_u10, da_v10):
     
@@ -978,7 +958,8 @@ def average_wind_speed(da_u10, da_v10):
     
     # Assign attributes
     aws.attrs['units'] = 'm s^-1'
-    aws.attrs['long_name'] = 'The annual average 10-metre wind speed'
+    aws.attrs['long_name'] = 'Annual mean 10-m wind speed'
+    aws.attrs['short_name'] = 'WSA'
     
     return aws
 
@@ -1022,8 +1003,9 @@ def high_wind_events(da_u10max, da_v10max):
     hwe = ws_events.sum(dim='time')*ls_mask.assign_coords(time=y).rename('hwe').astype(float)
     
     # Assign attributes
-    hwe.attrs['units'] = ' '
-    hwe.attrs['long_name'] = 'The annual number of high wind speed events'
+    hwe.attrs['units'] = 'events per year'
+    hwe.attrs['long_name'] = 'Number of high wind speed events'
+    hwe.attrs['short_name'] = 'HWE'
     
     return hwe
 
@@ -1045,7 +1027,9 @@ def annual_mean_temperature(da_t2mean_summer):
     
     # Assign attributes
     tavg.attrs['units'] = 'K'
-    tavg.attrs['long_name'] = 'The annual average 2-metre temperature'
+    tavg.attrs['long_name'] = 'Annual mean temperature'
+    tavg.attrs['short_name'] = 'TAVG'
+    tavg.attrs['standard_name'] = 'air_temperature'
     
     return tavg
 
@@ -1067,7 +1051,8 @@ def annual_precipitation(da_tp_summer):
     
     # Assign attributes
     tpa.attrs['units'] = 'm'
-    tpa.attrs['long_name'] = 'The annual precipitation sum'
+    tpa.attrs['long_name'] = 'Annual precipitation'
+    tpa.attrs['short_name'] = 'PRA'
     
     return tpa
 
@@ -1089,7 +1074,8 @@ def annual_snowfall(da_sf):
     
     # Assign attributes
     sfa.attrs['units'] = 'm'
-    sfa.attrs['long_name'] = 'The annual snowfall sum'
+    sfa.attrs['long_name'] = 'Annual snowfall'
+    sfa.attrs['short_name'] = 'SFA'
     
     return sfa
 
@@ -1122,91 +1108,8 @@ def summer_warmth_index(da_t2mean_summer):
     swi = swi.assign_coords(time=y).rename('swi').astype(float)
     
     # Assign attributes
-    swi.attrs['units'] = ''
+    swi.attrs['units'] = 'C'
     swi.attrs['long_name'] = 'Summer warmth index'
+    swi.attrs['short_name'] = 'SWI'
     
     return swi
-
-def exposure( da_snowc, rain_threshold):
-    
-    def is_djf(month):
-        return (month >= 12) | (month <= 2)
-    
-    # this function calculates rain-on-snow events
-    
-    import warnings
-    warnings.simplefilter("ignore", category=RuntimeWarning)
-    
-    # year
-    y = da_snowc.time.dt.year[-1].values
-    
-    print('Calculating the exposure variable for '+str(y)) 
-
-    # 1/np.nan field (land sea mask)
-    ls_mask = da_snowc.isel(time=0).notnull()
-    ls_mask = ls_mask.where(ls_mask, np.nan)    
-    
-     # Mark grid cells with snow cover < 50 with 0
-    snow_covered = da_snowc.where((da_snowc > 50) | (da_snowc.isnull()), 0)
-        
-    # Mark grid cells with snow cover > 50 with 1
-    snow_covered = snow_covered.where((snow_covered < 50) | (snow_covered.isnull()),1)
-        
-    # calculate cumulative sum of snow covered days
-    snowvalues = snow_covered.values
-    cums = np.cumsum(snowvalues, axis=0)
-    weights_by_duration_array = cums - np.maximum.accumulate(cums * (snowvalues==0), axis=0)  
-    
-    # make labeled xarray
-    cumulative_snow_length = snow_covered.copy(data=weights_by_duration_array)
-        
-    # The longest continuous snow period is the maximum of the cumulative sum
-    ssl = cumulative_snow_length.max(dim='time', skipna=True)
-          
-    # Assign coordinate and rename
-    ssl = (ssl*ls_mask).assign_coords(time=y).rename('ssl').astype(float)
-               
-        
-    # When the snow cover is 0.5 or greater in the grid cell,
-    # we consider it snow-covered. Retain nan-points over the sea
-    
-    
-    expo = da_snowc.where((da_snowc < 50) & (da_snowc.roll(time=1, roll_coords=False) > 50), 0)
-    
-    expo = xr.where((da_snowc < 50) & (da_snowc.roll(time=1, roll_coords=False) > 50), 1, 0)
-    
-    expo = expo.sel(time=is_djf(expo['time.month']))
-    
-    expo = expo.sum(dim='time') * ls_mask
-
-        
-    # # ROS events
-    # ros_events = (snow_covered * rain)
-    
-    # # Select only NDJFM period
-    # ros_events = ros_events.sel(time=is_ndjfm(ros_events['time.month']))
-        
-    # # Calculate sum
-    # ros = ros_events.sum(dim='time', skipna=False)
-        
-    # # Assign coordinate and rename
-    # ros = ros.assign_coords(time=y).rename('ros').astype(float)
-        
-    # # Assign attributes
-    # ros.attrs['units'] = 'events per year'
-    # ros.attrs['long_name'] = 'Rain-on-snow events'
-    
-   
-    # # Select only NDJFM period
-    # rain_events = rain.sel(time=is_ndjfm(rain['time.month']))
-        
-    # # Calculate sum
-    # re = rain_events.sum(dim='time', skipna=False)
-        
-    # Assign coordinate and rename
-    expo = expo.assign_coords(time=y).rename('expo').astype(float)
-        
-    # Assign attributes
-    expo.attrs['long_name'] = 'Exposure'
-    
-    return expo
