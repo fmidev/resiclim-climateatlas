@@ -931,7 +931,7 @@ def onset_end_snow_season(da_snowc,):
     ssl_beg.attrs['short_name'] = 'SSO'
     
     ssl_end.attrs['units'] = 'day of year'
-    ssl_end.attrs['long_name'] = 'End of snow season '
+    ssl_end.attrs['long_name'] = 'End of snow season'
     ssl_end.attrs['short_name'] = 'SSE'
 
     return ssl_beg, ssl_end
