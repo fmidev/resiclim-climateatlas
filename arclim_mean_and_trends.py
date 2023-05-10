@@ -159,7 +159,7 @@ outfile_tiff = outpath  + 'arclim_pvalues.tif'
 ds_pvals.to_netcdf(outfile, format='NETCDF4')
 
 # convert nc to geotiff and save
-geotiff = io_utils.da_to_geotiff(ds_trend.to_array(dim='variable'))
+geotiff = io_utils.da_to_geotiff(ds_pvals.to_array(dim='variable'))
 geotiff.to_raster(outfile_tiff)
 
 
@@ -180,5 +180,5 @@ outfile_tiff = outpath  + 'arclim_means.tif'
 ds_mean.to_netcdf(outfile, format='NETCDF4')
 
 # convert nc to geotiff and save
-geotiff = io_utils.da_to_geotiff(ds_trend.to_array(dim='variable'))
+geotiff = io_utils.da_to_geotiff(ds_mean.to_array(dim='variable'))
 geotiff.to_raster(outfile_tiff)
